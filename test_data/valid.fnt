@@ -1,0 +1,10 @@
+info face=valid size=8 bold=0 italic=0 charset= unicode= stretchH=100 smooth=1 aa=1 padding=2,2,2,2 spacing=0,0 outline=0
+common lineHeight=8 base=7 scaleW=128 scaleH=512 pages=1 packed=0
+page id=0 file="valid.png"
+chars count=3
+char id=33 x=2 y=3 width=6 height=7 xoffset=0 yoffset=1 xadvance=8 page=0 chnl=15
+char id=34 x=2 y=11 width=6 height=3 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15
+char id=32 x=0 y=0 width=0 height=0 xoffset=0 yoffset=7 xadvance=8 page=0 chnl=15
+kernings count=2
+kerning first=33 second=34 amount=-4
+kerning first=32 second=34 amount=-5
