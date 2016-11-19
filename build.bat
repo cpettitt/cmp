@@ -16,5 +16,4 @@ set LDFLAGS=-incremental:no -opt:ref user32.lib
 if not exist build mkdir build
 cd build
 
-cl %CFLAGS% ..\test\test_cmp_bmfont.cpp /link %LDFLAGS% || exit /b
-test_cmp_bmfont
+(cl %CFLAGS% -DCMP_BMFONT_SELF_TEST -Tp ..\cmp_bmfont.hpp /link %LDFLAGS% && pushd .. && build\cmp_bmfont && popd) || exit /b 1
