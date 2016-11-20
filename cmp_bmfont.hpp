@@ -1,4 +1,4 @@
-/* cmp_bmfont - v0.1 - public domain BM Font loader
+/* cmp_bmfont - v0.2 - public domain BM Font loader
    no warranty implied; use at your own risk
 
 This is a single file library, in the spirit of (https://github.com/nothings/stb), including a
@@ -23,6 +23,11 @@ To load a BMFont file (in text form), use something like the following:
     // Use font file
 
     cmp::bmfont_free(font);
+
+CHANGELOG
+
+    v0.2 11/20/2016 - Remove use of C++ limits header
+    v0.1 11/19/2016 - Initial revision
 
 LICENSE
 
@@ -82,7 +87,7 @@ struct BMFont {
 
 // Loads a BMFont from the specified file or returns nullptr if there is an error. Use
 // bmfont_get_error_string() to get the error.
-BMFont *bmfont_parse_file(char *filename);
+BMFont *bmfont_parse_file(const char *filename);
 void  bmfont_free(BMFont *font);
 const char *bmfont_get_error_string();
 
@@ -99,8 +104,6 @@ const char *bmfont_get_error_string();
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <limits>
 
 namespace cmp {
 
@@ -271,8 +274,7 @@ bool bmfont__match_key_and_advance_to_value(BMFont__Parser *parser, const char *
         bmfont__match_token_and_advance(parser, "=");
 }
 
-template <typename T>
-bool bmfont__get_token_as_int_and_advance(BMFont__Parser *parser, T *dest) {
+bool bmfont__get_token_as_long(BMFont__Parser *parser, int64_t *dest) {
     if (!bmfont__expect_more_tokens(parser)) return false;
     char *end_ptr;
     int64_t long_value = strtol(parser->next_token, &end_ptr, 0);
@@ -285,7 +287,24 @@ bool bmfont__get_token_as_int_and_advance(BMFont__Parser *parser, T *dest) {
         return false;
     }
 
-    if (long_value < std::numeric_limits<T>::min() || long_value > std::numeric_limits<T>::max()) {
+    *dest = long_value;
+    return true;
+}
+
+bool bmfont__do_get_token_as_int_and_advance(BMFont__Parser *parser, int64_t min, int64_t max, int64_t *dest) {
+    if (!bmfont__expect_more_tokens(parser)) return false;
+    char *end_ptr;
+    int64_t long_value = strtol(parser->next_token, &end_ptr, 0);
+    if (*end_ptr != '\0') {
+        bmfont__set_parser_error(parser,
+                                 "Expected an integer value (line %d, col %d). Got: %s",
+                                 parser->start_line,
+                                 parser->start_col,
+                                 parser->next_token);
+        return false;
+    }
+
+    if (long_value < min || long_value > max) {
         bmfont__set_parser_error(parser,
                                  "Integer value out of range (line %d, col %d). Got: %ld",
                                  parser->start_line,
@@ -294,9 +313,35 @@ bool bmfont__get_token_as_int_and_advance(BMFont__Parser *parser, T *dest) {
         return false;
     }
 
-    *dest = (T)long_value;
-
+    *dest = long_value;
     return bmfont__load_next_token(parser);
+}
+
+bool bmfont__get_token_as_int_and_advance(BMFont__Parser *parser, int16_t *dest) {
+    int64_t long_value;
+    if (bmfont__do_get_token_as_int_and_advance(parser, -32768, 32767, &long_value)) {
+        *dest = (int16_t)long_value;
+        return true;
+    }
+    return false;
+}
+
+bool bmfont__get_token_as_int_and_advance(BMFont__Parser *parser, uint16_t *dest) {
+    int64_t long_value;
+    if (bmfont__do_get_token_as_int_and_advance(parser, 0, 65535, &long_value)) {
+        *dest = (int16_t)long_value;
+        return true;
+    }
+    return false;
+}
+
+bool bmfont__get_token_as_int_and_advance(BMFont__Parser *parser, uint32_t *dest) {
+    int64_t long_value;
+    if (bmfont__do_get_token_as_int_and_advance(parser, 0, 4294967295, &long_value)) {
+        *dest = (int16_t)long_value;
+        return true;
+    }
+    return false;
 }
 
 bool bmfont__copy_token_and_advance(BMFont__Parser *parser, char **dest) {
@@ -335,7 +380,7 @@ bool bmfont__parse_info(BMFont__Parser *parser, BMFont *font) {
         if (bmfont__match_key_and_advance_to_value(parser, "face")) {
             bmfont__copy_token_and_advance(parser, &font->font_name);
         } else if (bmfont__match_key_and_advance_to_value(parser, "size")) {
-            bmfont__get_token_as_int_and_advance<int16_t>(parser, &font->font_size);
+            bmfont__get_token_as_int_and_advance(parser, &font->font_size);
         } else {
             bmfont__match_token_and_advance(parser, "=");
             bmfont__load_next_token(parser);
@@ -350,15 +395,15 @@ bool bmfont__parse_common(BMFont__Parser *parser, BMFont *font) {
 
     while (bmfont__parser_ready(parser) && !bmfont__match_token_and_advance(parser, "\n")) {
         if (bmfont__match_key_and_advance_to_value(parser, "lineHeight")) {
-            bmfont__get_token_as_int_and_advance<uint16_t>(parser, &font->line_height);
+            bmfont__get_token_as_int_and_advance(parser, &font->line_height);
         } else if (bmfont__match_key_and_advance_to_value(parser, "base")) {
-            bmfont__get_token_as_int_and_advance<uint16_t>(parser, &font->base);
+            bmfont__get_token_as_int_and_advance(parser, &font->base);
         } else if (bmfont__match_key_and_advance_to_value(parser, "scaleW")) {
-            bmfont__get_token_as_int_and_advance<uint16_t>(parser, &font->scale_w);
+            bmfont__get_token_as_int_and_advance(parser, &font->scale_w);
         } else if (bmfont__match_key_and_advance_to_value(parser, "scaleH")) {
-            bmfont__get_token_as_int_and_advance<uint16_t>(parser, &font->scale_h);
+            bmfont__get_token_as_int_and_advance(parser, &font->scale_h);
         } else if (bmfont__match_key_and_advance_to_value(parser, "pages")) {
-            bmfont__get_token_as_int_and_advance<uint16_t>(parser, &font->num_pages);
+            bmfont__get_token_as_int_and_advance(parser, &font->num_pages);
             font->page_names = (char **)bmfont__calloc(font->num_pages, sizeof(char *));
             if (!font->page_names) parser->flags &= ~BMFONT__PARSER_OK;
         } else {
@@ -373,12 +418,12 @@ bool bmfont__parse_common(BMFont__Parser *parser, BMFont *font) {
 bool bmfont__parse_pages(BMFont__Parser *parser, BMFont *font) {
     int i;
     for (i = 0; i < font->num_pages && bmfont__match_token_and_advance(parser, "page"); ++i) {
-        int id = -1;
+        uint32_t id = 0;
         char *filename = nullptr;
 
         while (bmfont__parser_ready(parser) && !bmfont__match_token_and_advance(parser, "\n")) {
             if (bmfont__match_key_and_advance_to_value(parser, "id")) {
-                bmfont__get_token_as_int_and_advance<int>(parser, &id);
+                bmfont__get_token_as_int_and_advance(parser, &id);
             } else if (bmfont__match_key_and_advance_to_value(parser, "file")) {
                 bmfont__copy_quoted_token_and_advance(parser, &filename);
             } else {
@@ -387,9 +432,9 @@ bool bmfont__parse_pages(BMFont__Parser *parser, BMFont *font) {
             }
         }
 
-        if (id == -1 || filename == nullptr) {
+        if (filename == nullptr) {
             bmfont__set_parser_error(parser,
-                                     "Page tag missing id or filename (line %d)",
+                                     "Page tag missing filename (line %d)",
                                      parser->start_line);
 
             if (filename) free(filename);
@@ -415,7 +460,7 @@ bool bmfont__parse_chars(BMFont__Parser *parser, BMFont *font) {
 
     while (bmfont__parser_ready(parser) && !bmfont__match_token_and_advance(parser, "\n")) {
         if (bmfont__match_key_and_advance_to_value(parser, "count")) {
-            if (bmfont__get_token_as_int_and_advance<uint16_t>(parser, &font->num_chars)) {
+            if (bmfont__get_token_as_int_and_advance(parser, &font->num_chars)) {
                 font->chars = (BMFont::Char *)bmfont__calloc(font->num_chars, sizeof(BMFont::Char));
                 if (!font->chars) parser->flags &= ~BMFONT__PARSER_OK;
             }
@@ -430,21 +475,21 @@ bool bmfont__parse_chars(BMFont__Parser *parser, BMFont *font) {
         BMFont::Char *ch = &font->chars[i];
         while (bmfont__parser_ready(parser) && !bmfont__match_token_and_advance(parser, "\n")) {
             if (bmfont__match_key_and_advance_to_value(parser, "id")) {
-                bmfont__get_token_as_int_and_advance<uint32_t>(parser, &ch->id);
+                bmfont__get_token_as_int_and_advance(parser, &ch->id);
             } else if (bmfont__match_key_and_advance_to_value(parser, "x")) {
-                bmfont__get_token_as_int_and_advance<uint16_t>(parser, &ch->x);
+                bmfont__get_token_as_int_and_advance(parser, &ch->x);
             } else if (bmfont__match_key_and_advance_to_value(parser, "y")) {
-                bmfont__get_token_as_int_and_advance<uint16_t>(parser, &ch->y);
+                bmfont__get_token_as_int_and_advance(parser, &ch->y);
             } else if (bmfont__match_key_and_advance_to_value(parser, "width")) {
-                bmfont__get_token_as_int_and_advance<uint16_t>(parser, &ch->width);
+                bmfont__get_token_as_int_and_advance(parser, &ch->width);
             } else if (bmfont__match_key_and_advance_to_value(parser, "height")) {
-                bmfont__get_token_as_int_and_advance<uint16_t>(parser, &ch->height);
+                bmfont__get_token_as_int_and_advance(parser, &ch->height);
             } else if (bmfont__match_key_and_advance_to_value(parser, "xoffset")) {
-                bmfont__get_token_as_int_and_advance<uint16_t>(parser, &ch->x_offset);
+                bmfont__get_token_as_int_and_advance(parser, &ch->x_offset);
             } else if (bmfont__match_key_and_advance_to_value(parser, "yoffset")) {
-                bmfont__get_token_as_int_and_advance<uint16_t>(parser, &ch->y_offset);
+                bmfont__get_token_as_int_and_advance(parser, &ch->y_offset);
             } else if (bmfont__match_key_and_advance_to_value(parser, "xadvance")) {
-                bmfont__get_token_as_int_and_advance<uint16_t>(parser, &ch->x_advance);
+                bmfont__get_token_as_int_and_advance(parser, &ch->x_advance);
             } else {
                 bmfont__match_token_and_advance(parser, "=");
                 bmfont__load_next_token(parser);
@@ -473,7 +518,7 @@ bool bmfont__parse_kernings(BMFont__Parser *parser, BMFont *font) {
 
     while (bmfont__parser_ready(parser) && !bmfont__match_token_and_advance(parser, "\n")) {
         if (bmfont__match_key_and_advance_to_value(parser, "count")) {
-            if (bmfont__get_token_as_int_and_advance<uint16_t>(parser, &font->num_kernings)) {
+            if (bmfont__get_token_as_int_and_advance(parser, &font->num_kernings)) {
                 font->kernings = (BMFont::Kerning *)bmfont__calloc(font->num_kernings, sizeof(BMFont::Kerning));
                 if (!font->kernings) parser->flags &= ~BMFONT__PARSER_OK;
             }
@@ -488,11 +533,11 @@ bool bmfont__parse_kernings(BMFont__Parser *parser, BMFont *font) {
         BMFont::Kerning *kerning = &font->kernings[i];
         while (bmfont__parser_ready(parser) && !bmfont__match_token_and_advance(parser, "\n")) {
             if (bmfont__match_key_and_advance_to_value(parser, "first")) {
-                bmfont__get_token_as_int_and_advance<uint32_t>(parser, &kerning->first);
+                bmfont__get_token_as_int_and_advance(parser, &kerning->first);
             } else if (bmfont__match_key_and_advance_to_value(parser, "second")) {
-                bmfont__get_token_as_int_and_advance<uint32_t>(parser, &kerning->second);
+                bmfont__get_token_as_int_and_advance(parser, &kerning->second);
             } else if (bmfont__match_key_and_advance_to_value(parser, "amount")) {
-                bmfont__get_token_as_int_and_advance<int16_t>(parser, &kerning->amount);
+                bmfont__get_token_as_int_and_advance(parser, &kerning->amount);
             } else {
                 bmfont__match_token_and_advance(parser, "=");
                 bmfont__load_next_token(parser);
@@ -512,7 +557,7 @@ bool bmfont__parse_kernings(BMFont__Parser *parser, BMFont *font) {
     return bmfont__parser_ok(parser);
 }
 
-BMFont *bmfont_parse_file(char *filename)
+BMFont *bmfont_parse_file(const char *filename)
 {
     strcpy(bmfont__error, "Success");
 
